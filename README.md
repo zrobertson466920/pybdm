@@ -1,2 +1,3 @@
 # Coding-Theorem-Method
-Repository for numerical approximations to algorithmic probability and thus algorithmic complexity.
+
+This is a repository for numerical approximations to algorithmic probability centered around calculating approximations for large data sets. To do this, we take advtange of the Block Decomposition Method (BDM) method devloped by Hector Zenil and described in this [paper](https://arxiv.org/pdf/1609.00110.pdf). 
