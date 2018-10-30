@@ -29,9 +29,9 @@ def key_to_array(string):
 # Needs to be general
 def array_to_key(matrix):
     try:
-        return str(tuple(tuple(i) for i in matrix))
+        return str(tuple(array_to_key(i) for i in matrix))
     except TypeError:
-        return str(matrix)
+        return tuple(matrix)
 
 
 def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=False):
@@ -57,10 +57,10 @@ def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=Fa
 
     assert boundaries == 'ignore', 'Boundary conditions not implemented yet.'
     assert shape.count(shape[0]) == len(shape), 'Only square matrices are allowed.'
-    assert dim == 2, 'Only matrices are allowed'
+    #assert dim == 2, 'Only matrices are allowed'
 
     if verbose:
-        print('The full matrix (%i,%i) to be decomposed:' % shape)
+        #print('The full matrix (%i) to be decomposed:' % shape)
         print(array)
 
     # Alter shape for iteration
@@ -82,8 +82,7 @@ def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=Fa
     if verbose:
         print('Base submatrices:')
         for s, n in counts.items():
-            submatrix = key_to_array(s)
-            print(np.array(submatrix), 'n =', n)
+            print(key_to_array(s), 'n =', n)
         print('BDM calculated value =', bdm_value)
     
     # Just to check whether there were repetitions in the decomposition
