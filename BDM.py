@@ -10,6 +10,8 @@ import numpy as np
 import ast
 import json
 
+import matplotlib.pyplot as plt
+
 from collections import Counter
 from itertools import product
 
@@ -27,9 +29,9 @@ def key_to_array(string):
 
 
 # Needs to be general
-def array_to_key(matrix):
+def array_to_tuple(matrix):
     try:
-        return str(tuple(array_to_key(i) for i in matrix))
+        return tuple(array_to_tuple(i) for i in matrix)
     except TypeError:
         return tuple(matrix)
 
@@ -74,7 +76,7 @@ def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=Fa
         sm = array
         for i in range(0,dim):
             sm = np.take(sm,list(range(item[i]*block,(item[i]+1)*block)),axis = i)
-        submatrices.append(array_to_key(sm))
+        submatrices.append(str(array_to_tuple(sm)))
 
     counts = Counter(submatrices)
     bdm_value = sum(lookup[string] + np.log2(n) for string, n in counts.items())
@@ -93,14 +95,15 @@ def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=Fa
 
 if __name__ == '__main__':
 
-    lookup = build_lookup_table('K-4x4.json')
-    strings = []
-    with open('example_input.txt','r') as input_file:
-        for line in input_file.readlines():
-            # Removes all kinds of whitespace and can handle edge case where file doesn't terminate with newline char
-            strings.append(line.rstrip())
+    lookup = build_lookup_table('K-3.json')
+    lookup1 = build_lookup_table('K-9.json')
+    strings = list(lookup1)
 
-    bdmvals = [calculate_bdm(key_to_array(s), lookup, verbose=True) for s in strings]
-    for val in bdmvals:
-        # I get the same vals as with the original script
-        print(val)
+    bdmvals = [calculate_bdm(key_to_array(s), lookup, block = 3, dim = 1, verbose=True) for s in strings]
+
+    plt.figure()
+    plt.scatter(bdmvals,lookup1.values())
+    plt.xlabel("BDM Value")
+    plt.ylabel("CTM Value")
+    plt.title("BDM vs. CTM")
+    plt.show()
