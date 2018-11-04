@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 from collections import Counter
 from itertools import product
 
+import scipy.stats
+
 
 # The JSON holds tuples
 def build_lookup_table(filename):
@@ -36,7 +38,8 @@ def array_to_tuple(matrix):
         return tuple(matrix)
 
 
-def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=False):
+# Partition the data set into chunks
+def partition(array, block=4, dim=2, boundaries='ignore', verbose=False):
     """
     Input
     --------
@@ -66,20 +69,26 @@ def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=Fa
         print(array)
 
     # Alter shape for iteration
-    shape = np.array(shape) // block
+    tshape = np.array(shape) // block
     func = lambda x: range(0,x,1)
-    shape = map(func,shape)
+    shape = map(func,tshape)
 
     # Leftovers will be ignored
-    submatrices = []
+    submatrices = np.zeros(tuple(tshape), dtype = "object_")
     for item in product(*list(shape)):
         sm = array
         for i in range(0,dim):
             sm = np.take(sm,list(range(item[i]*block,(item[i]+1)*block)),axis = i)
-        submatrices.append(str(array_to_tuple(sm)))
+        submatrices[item] = str(array_to_tuple(sm))
 
-    counts = Counter(submatrices)
-    bdm_value = sum(lookup[string] + np.log2(n) for string, n in counts.items())
+    return submatrices
+
+
+def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=False):
+
+    submatrices = partition(array, block, dim, boundaries, verbose)
+    counts = Counter(submatrices.flatten())
+    bdm_value = sum(lookup[string]+np.log2(n) for string, n in counts.items())
     
     if verbose:
         print('Base submatrices:')
@@ -93,17 +102,79 @@ def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=Fa
     return bdm_value
 
 
+def calculate_rbdm(array, lookup, block=3, dim=2, boundaries='ignore', verbose=False):
+
+    submatrices = partition(array, block, dim, boundaries, verbose)
+    renorm_matrix = np.zeros(np.shape(submatrices))
+    for index, value in np.ndenumerate(submatrices):
+        renorm_matrix[index] = flatten(key_to_array(value))
+    return calculate_bdm(array, lookup, 3, dim, boundaries, verbose)
+
+
+def flatten(square):
+    count = 0
+    for val in square:
+        if val == 1:
+            count += 1
+
+    if count >= np.size(square) / 2:
+        return 1
+    else:
+        return 0
+
+
+def flip(a):
+    idx = np.random.choice(a,replace=False)
+    a[idx] = not(a[idx])
+    return a
+
+
+def flips(lookup1):
+    flips = []
+    for item in lookup1:
+        flips.append(lookup1[str(array_to_tuple(flip(key_to_array(item))))])
+    return flips
+
+
 if __name__ == '__main__':
 
-    lookup = build_lookup_table('K-3.json')
-    lookup1 = build_lookup_table('K-9.json')
-    strings = list(lookup1)
+    lookup_base = build_lookup_table('K-3.json')
+    lookup_12 = build_lookup_table('K-12m.json')
+    strings = list(lookup_12)
 
-    bdmvals = [calculate_bdm(key_to_array(s), lookup, block = 3, dim = 1, verbose=True) for s in strings]
+    values = [(calculate_rbdm(key_to_array(s), lookup_base, block = 4, dim = 1, verbose=False),lookup_12[s]) for s in strings]
+    bdm_vals,ctm_vals = zip(*values)
+
+    pvalues = []
+    bdm1 = []
+    bdm2 = []
+    for s in strings:
+        temp = key_to_array(s)
+        p_mean = []
+        pp_mean = []
+        for i in range(0,12):
+            p_val = flip(key_to_array(s))
+            p_mean.append(calculate_rbdm(p_val, lookup_base, block = 4, dim = 1, verbose=False))
+            pp_mean.append(lookup_12[str(array_to_tuple(p_val))])
+        pvalues.append((np.mean(p_mean),np.mean(pp_mean)))
+    p_bdm, p_ctm = zip(*pvalues)
+
+    bdm_vals = np.array(bdm_vals)
+    p_bdm = np.array(p_bdm)
+    ctm_vals = np.array(ctm_vals)
+    p_ctm = np.array(p_ctm)
+    d_bdm = bdm_vals - p_bdm
+    d_ctm = ctm_vals - p_ctm
+
+    score = d_bdm * d_ctm
+    print(len(score[score > 0]) / len(score))
 
     plt.figure()
-    plt.scatter(bdmvals,lookup1.values())
+    print(scipy.stats.pearsonr(d_bdm,d_ctm))
+    #plt.scatter(ctm_vals,d_ctm, c = 'r')
+    plt.scatter(bdm_vals,d_bdm, c = 'b')
     plt.xlabel("BDM Value")
     plt.ylabel("CTM Value")
     plt.title("BDM vs. CTM")
+
     plt.show()
