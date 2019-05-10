@@ -11,11 +11,12 @@ import ast
 import json
 
 import matplotlib.pyplot as plt
+import pylab
 
 from collections import Counter
 from itertools import product
 
-import scipy.stats
+import scipy.stats as stats
 
 
 # The JSON holds tuples
@@ -48,13 +49,17 @@ def partition(array, block=4, dim=2, boundaries='ignore', verbose=False):
     lookup : dict
         key is base matrix, value is its CTM value. Base matrices must be of
         size d x d.
-    d : integer
-        size of base matrices
+    block : integer
+            size of base matrices
+    dim : integer
+        1 is a list
+        2 is a matrix
+        etc...
         
     Output
     ------
-    bdm : float
-        BDM value for the matrix
+    submatrices : list
+        partition form of the input
     """
 
     shape = np.shape(array)
@@ -85,13 +90,36 @@ def partition(array, block=4, dim=2, boundaries='ignore', verbose=False):
 
 
 def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=False):
+    """
+        Input
+        --------
+        array : numpy array
+            numpy array of 0s and 1s
+        lookup : dict
+            key is base matrix, value is its CTM value. Base matrices must be of
+            size d x d.
+        block : integer
+            size of base matrices
+        dim : integer
+            1 is a list
+            2 is a matrix
+            etc...
+
+        Output
+        ------
+        bdm : float
+            BDM value for the input
+        """
 
     submatrices = partition(array, block, dim, boundaries, verbose)
     counts = Counter(submatrices.flatten())
-    bdm_value = sum(lookup[string]+n*np.log2(n) for string, n in counts.items())
+    #bdm_value = sum(lookup[string]*(1+np.log2(n)) for string, n in counts.items())
     a = len(array[array == 0])
     b = len(array[array == 1])
-    #bdm_value = 25+-(a * np.log(a/(a+b)+0.01)+b*np.log(b/(a+b)+0.01))
+    ent = -(a * np.log(a/(a+b)+0.01)+b*np.log(b/(a+b)+0.01))
+    w = 1
+    bdm_value = ent*(1-w)+w*sum(lookup[string] - entropy(string) for string, n in counts.items())
+    #bdm_value = (bdm_value - 26)/2
 
     if verbose:
         print('Base submatrices:')
@@ -103,6 +131,13 @@ def calculate_bdm(array, lookup, block=4, dim=2, boundaries='ignore', verbose=Fa
     # print('Were all submatrices unique?', set(counts.values()) == {1})
 
     return bdm_value
+
+
+def entropy(string):
+    array = key_to_array(string)
+    a = len(array[array == 0])
+    b = len(array[array == 1])
+    return(-(a * np.log(a/(a+b)+0.01)+b*np.log(b/(a+b)+0.01)))
 
 
 def calculate_rbdm(array, lookup, block=3, dim=2, boundaries='ignore', verbose=False):
@@ -144,50 +179,21 @@ def flips(lookup1):
     return flips
 
 
+def variance(bdm1):
+    x = bdm1/12
+    a = -(2*x**4-4*x**3-x**2+3*x-1)
+    b = x**2*(x-1)**2
+    return 3*np.sqrt(b/a)
+
+
 if __name__ == '__main__':
 
-    lookup_base = build_lookup_table('K-6.json')
-    lookup_12 = build_lookup_table('K-12m.json')
-    strings = list(lookup_12)
+    # Build Lookup Tables
+    lookup_base = build_lookup_table('data/K-6.json')
+    lookup_12 = build_lookup_table('data/K-12m.json')
+    # Test String
+    strings = ["000000000000"]
 
-    values = [(calculate_rbdm(key_to_array(s), lookup_base, block = 2, dim = 1, verbose=False),lookup_12[s]) for s in strings]
-    bdm_vals,ctm_vals = zip(*values)
-
-    pvalues = []
-    bdm1 = []
-    bdm2 = []
-    for s in strings:
-        temp = key_to_array(s)
-        bdm1.append(len(temp[temp == 0]))
-        p_mean = []
-        pp_mean = []
-        for i in range(0,12):
-            p_val = flip(key_to_array(s))
-            p_mean.append(calculate_rbdm(p_val, lookup_base, block = 2, dim = 1, verbose=False))
-            pp_mean.append(lookup_12[str(array_to_tuple(p_val))])
-        pvalues.append((np.mean(p_mean),np.mean(pp_mean)))
-    p_bdm, p_ctm = zip(*pvalues)
-
-    bdm1 = np.array(bdm1)
-    bdm_vals = np.array(bdm_vals)
-    p_bdm = np.array(p_bdm)
-    ctm_vals = np.array(ctm_vals)
-    p_ctm = np.array(p_ctm)
-    d_bdm = bdm_vals - p_bdm
-    d_ctm = ctm_vals - p_ctm
-
-    score = d_bdm * d_ctm
-    print(len(score[score > 0]) / len(score))
-
-    plt.figure()
-    print(scipy.stats.pearsonr(bdm_vals,ctm_vals))
-    plt.scatter(bdm_vals,ctm_vals, c = 'r')
-    '''for n in range(1,12):
-        temp = abs(ctm_vals - bdm_vals)**2
-        plt.scatter(n,np.mean(temp[np.where(bdm1 == n)]), c = 'b')
-    plt.scatter(bdm1, 2.19*np.exp(-(6-bdm1)**2 / 12),c='r')'''
-    plt.xlabel("BDM Value")
-    plt.ylabel("CTM Value")
-    plt.title("BDM vs. CTM")
-
-    plt.show()
+    # calculate_bdm expects an array for input
+    values = [(s,calculate_bdm(np.array(list(s),dtype = int), lookup_base, block = 6, dim = 1, verbose=False)) for s in strings]
+    print(values)
